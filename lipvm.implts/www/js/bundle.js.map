@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../src/model.ts", "../../src/app.ts"],
+  "sourcesContent": ["export class Command{\n    constructor(){\n\n    }\n    execute(){\n        console.error('foo')\n    }\n}", "console.error(\"LIPVM rocks\");\n\n\nimport { Command } from \"./model\";\n\nconst c = new Command();\nc.execute();"],
+  "mappings": ";;;;AAAO,MAAM,UAAN,MAAa;AAAA,IAChB,cAAa;AAAA,IAEb;AAAA,IACA,UAAS;AACL,cAAQ,MAAM,KAAK;AAAA,IACvB;AAAA,EACJ;;;ACPA,UAAQ,MAAM,aAAa;AAK3B,MAAM,IAAI,IAAI,QAAQ;AACtB,IAAE,QAAQ;",
+  "names": []
+}

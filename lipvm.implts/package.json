@@ -1,0 +1,29 @@
+{
+  "name": "lipvm",
+  "version": "1.0.0",
+  "description": "a vm for interactive programming",
+  "main": "index.js",
+  "scripts": {
+    "dev": "tsc --watch",
+    "build": "node ./build/build.js",
+    "start": "node ./build/serve.js",
+    "test": "NODE_OPTIONS=--experimental-vm-modules jest --config=jest.config.ts tests --coverage"
+  },
+  "type": "module",
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "tslib": "^2.8.1"
+  },
+  "devDependencies": {
+    "@jest/globals": "^29.7.0",
+    "@types/jest": "^29.5.14",
+    "esbuild": "^0.24.0",
+    "esbuild-plugin-tsc": "^0.4.0",
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0",
+    "ts-jest": "^29.2.5",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.2"
+  }
+}
