@@ -2,7 +2,7 @@
 
 ## Main objectives and features
 
-==> [issue tracker](https://github.com/orgs/gemoc/projects/2)
+==> [requirements](https://github.com/orgs/gemoc/projects/2)
 
 ## Design Rationales
 
@@ -17,3 +17,5 @@
 ### Object Prevalence
 
 ## Overall architecture
+
+## References
