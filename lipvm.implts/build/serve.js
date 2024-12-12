@@ -2,6 +2,8 @@ import esbuild from 'esbuild';
 import { createBuildSettings } from './settings.js';
 import http from 'node:http'
 
+const devport = 3000
+
 const settings = createBuildSettings({ 
   sourcemap: true,
   banner: {
@@ -26,7 +28,6 @@ const { host, port } = await ctx.serve({
 http.createServer((req, res) => {
     req.headers["Cross-Origin-Embedder-Policy"]="require-corp";
     req.headers["Cross-Origin-Opener-Policy"] = "same-origin"
-  console.error(req.headers)
   const options = {
     hostname: host,
     port: port,
@@ -50,8 +51,8 @@ http.createServer((req, res) => {
 
   // Forward the body of the request to esbuild
   req.pipe(proxyReq, { end: true })
-}).listen(3000)
+}).listen(devport)
   
 
 
-console.log(`Serving app at ${host}:${port}.`);
+console.log(`Serving app at ${host}:${devport}.`);
