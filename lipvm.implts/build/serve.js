@@ -24,7 +24,6 @@ const { host, port } = await ctx.serve({
 
 // Then start a proxy server on port 3000
 http.createServer((req, res) => {
-  console.error(req.headers)
     req.headers["Cross-Origin-Embedder-Policy"]="require-corp";
     req.headers["Cross-Origin-Opener-Policy"] = "same-origin"
   console.error(req.headers)
