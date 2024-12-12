@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ES2019",
+    "module": "Node16",
+    "lib": ["ESNext","DOM","webworker"],
+    "sourceMap": true,
+    "outDir": "out",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noImplicitReturns": true,
+    "moduleResolution": "Node16",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "rootDir": "./src"
+  },
+  "include": [
+     "src/**/*.ts"
+  ],
+  "exclude": [
+     "out",
+     "public",
+     "node_modules"
+  ]
+}
