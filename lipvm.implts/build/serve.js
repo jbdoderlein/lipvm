@@ -1,5 +1,6 @@
 import esbuild from 'esbuild';
 import { createBuildSettings } from './settings.js';
+import http from 'node:http'
 
 const settings = createBuildSettings({ 
   sourcemap: true,
@@ -16,6 +17,42 @@ const { host, port } = await ctx.serve({
   port: 5500,
   servedir: 'www',
   fallback: "www/index.html"
+
+
+
 });
+
+// Then start a proxy server on port 3000
+http.createServer((req, res) => {
+  console.error(req.headers)
+    req.headers["Cross-Origin-Embedder-Policy"]="require-corp";
+    req.headers["Cross-Origin-Opener-Policy"] = "same-origin"
+  console.error(req.headers)
+  const options = {
+    hostname: host,
+    port: port,
+    path: req.url,
+    method: req.method,
+        headers: req.headers
+  }
+  // Forward each incoming request to esbuild
+  const proxyReq = http.request(options, proxyRes => {
+    // If esbuild returns "not found", send a custom 404 page
+    if (proxyRes.statusCode === 404) {
+      res.writeHead(404, { 'Content-Type': 'text/html' })
+      res.end('<h1>A custom 404 page</h1>')
+      return
+    }
+
+    // Otherwise, forward the response from esbuild to the client
+    res.writeHead(proxyRes.statusCode, proxyRes.headers)
+    proxyRes.pipe(res, { end: true })
+  })
+
+  // Forward the body of the request to esbuild
+  req.pipe(proxyReq, { end: true })
+}).listen(3000)
+  
+
 
 console.log(`Serving app at ${host}:${port}.`);
