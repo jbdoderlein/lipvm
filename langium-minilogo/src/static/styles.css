@@ -7,27 +7,174 @@ html,body {
     padding: 0;
     width: 100%;
     height: 100%;
+    overflow: hidden; /* Prevent page scrolling */
 }
 h1 {
     text-align: center;
+    margin: 10px 0;
 }
 #minilogo-canvas {
     display: block;
     margin: 8px auto;
     text-align: center;
+    border: 1px solid #333;
+    background-color: rgb(33,33,33);
 }
 #page-wrapper {
     display: flex;
-    max-width: 2000px;
-    margin: 4px auto;
+    height: calc(100vh - 60px); /* Full height minus header */
+    margin: 0 auto;
     padding: 4px;
-    min-height: 75vh;
     justify-content: center;
+    max-width: 2000px;
 }
-#page-wrapper .half {
+#page-wrapper .half1 {
     display: flex;
-    width: 40vw;
+    width: 30vw;
+    flex-direction: column;
+    height: 100%; /* Take full height */
+    overflow: hidden; /* Keep the editor fixed */
 }
+#page-wrapper .half2 {
+    display: flex;
+    width: 70vw;
+    flex-direction: column;
+    height: 100%; /* Take full height */
+    overflow: hidden; /* Don't scroll the container itself */
+    padding-right: 10px;
+}
+
+/* Remove old selectors that are no longer used */
+/* Make the right half (execution area) scrollable */
+#page-wrapper .half:last-child {
+    overflow-y: auto;
+    padding-right: 10px; /* Space for scrollbar */
+}
+
+/* Keep the left half (editor) fixed */
+#page-wrapper .half:first-child {
+    overflow: hidden;
+}
+
+/* Controls styling */
+#controls-container {
+    margin: 10px auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    justify-content: center;
+    padding: 10px;
+    background-color: rgba(51, 51, 51, 0.8);
+    border-radius: 8px;
+    width: fit-content;
+    flex-shrink: 0; /* Prevent controls from shrinking */
+}
+
+.control-button {
+    padding: 5px 15px;
+    background: none;
+    border: 1px solid #666;
+    color: #fff;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s;
+}
+
+.control-button:hover {
+    border-color: #6cf;
+    color: #6cf;
+}
+
+.control-button:active {
+    background-color: rgba(102, 204, 255, 0.2);
+}
+
+#step-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    background: #444;
+    height: 5px;
+    border-radius: 5px;
+    margin: 0 10px;
+    flex: 1;
+    min-width: 200px;
+    max-width: 400px;
+}
+
+#step-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 15px;
+    height: 15px;
+    background: #6cf;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+#step-slider::-moz-range-thumb {
+    width: 15px;
+    height: 15px;
+    background: #6cf;
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
+}
+
+/* Command highlighting */
+.current-command-highlight {
+    background-color: rgba(255, 255, 0, 0.2);
+    border: 1px solid yellow;
+}
+
+/* Canvas container with horizontal scroll */
+#canvas-container {
+    display: flex;
+    flex-direction: row;
+    gap: 10px;
+    margin: 10px auto;
+    padding: 10px;
+    overflow-x: auto;
+    white-space: nowrap;
+    width: 100%;
+    scrollbar-width: thin;
+    scrollbar-color: #666 #333;
+    flex-shrink: 0; /* Prevent container from shrinking */
+}
+
+/* Webkit scrollbar styling */
+#canvas-container::-webkit-scrollbar {
+    height: 8px;
+}
+
+#canvas-container::-webkit-scrollbar-track {
+    background: #333;
+    border-radius: 4px;
+}
+
+#canvas-container::-webkit-scrollbar-thumb {
+    background: #666;
+    border-radius: 4px;
+}
+
+#canvas-container::-webkit-scrollbar-thumb:hover {
+    background: #888;
+}
+
+.canvas-wrapper {
+    flex: 0 0 auto; /* Don't allow shrinking */
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 10px;
+    min-width: 300px; /* Minimum width for each canvas */
+}
+
+.step-label {
+    min-width: 80px;
+    text-align: center;
+}
+
 .build {
     display: block;
     margin: 8px auto;
@@ -85,4 +232,274 @@ footer {
 
 #status-msg {
     color: red;
+}
+
+/* Execution graph container with vertical scroll */
+#execution-graph-container {
+    margin: 10px auto;
+    padding: 10px;
+    background-color: rgba(51, 51, 51, 0.8);
+    border-radius: 8px;
+    width: 90%;
+    overflow-y: auto; /* Add vertical scrolling */
+    flex-grow: 1; /* Take remaining space */
+}
+
+.execution-timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 10px;
+}
+
+.execution-row {
+    display: flex;
+    gap: 5px;
+    align-items: flex-start;
+    padding: 5px 5px 5px 120px; /* Increased padding for version label */
+    border-radius: 4px;
+    background-color: rgba(0, 0, 0, 0.2);
+    flex-wrap: wrap;
+    position: relative;
+    min-height: 30px;
+    margin-left: var(--tree-indent, 0px); /* Dynamic indentation */
+}
+
+.execution-row.current {
+    border: 1px solid #6cf;
+    background-color: rgba(102, 204, 255, 0.1);
+}
+
+.execution-label {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    color: #666;
+    font-size: 12px;
+    z-index: 1;
+    width: 100px; /* Fixed width for label container */
+}
+
+/* Visibility checkbox styles */
+.visibility-checkbox {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    border: 1px solid #666;
+    border-radius: 3px;
+    background: rgba(51, 51, 51, 0.8);
+    cursor: pointer;
+    position: relative;
+    margin-right: 5px;
+}
+
+.visibility-checkbox:checked {
+    background: #6cf;
+    border-color: #6cf;
+}
+
+.visibility-checkbox:checked::after {
+    content: '✓';
+    position: absolute;
+    color: #000;
+    font-size: 12px;
+    left: 2px;
+    top: -1px;
+}
+
+.visibility-checkbox:hover {
+    border-color: #6cf;
+}
+
+/* Version tree line styles */
+.version-tree {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.version-tree::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background-color: #666;
+}
+
+/* Remove horizontal line */
+.version-tree::after {
+    display: none;
+}
+
+.version-tree.root::before {
+    top: 50%;
+}
+
+.version-tree.leaf::before {
+    bottom: 50%;
+}
+
+.change-button {
+    background: none;
+    border: 1px solid #666;
+    color: #666;
+    cursor: pointer;
+    font-size: 11px;
+    padding: 1px 6px;
+    border-radius: 3px;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.change-button:hover {
+    color: #6cf;
+    border-color: #6cf;
+    background-color: rgba(102, 204, 255, 0.1);
+}
+
+/* Command nodes container */
+.commands-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    flex: 1;
+    min-width: 0; /* Allow container to shrink */
+}
+
+/* Editor version indicator */
+#editor-version-indicator {
+    position: absolute;
+    top: 5px;
+    right: 10px;
+    background-color: rgba(51, 51, 51, 0.8);
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    color: #6cf;
+    z-index: 100;
+}
+
+.restore-button {
+    background: none;
+    border: none;
+    color: #666;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 2px 5px;
+    border-radius: 3px;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.restore-button:hover {
+    color: #6cf;
+    background-color: rgba(102, 204, 255, 0.1);
+}
+
+/* Remove the old pseudo-element label */
+.execution-row::before {
+    content: none;
+}
+
+.command-node {
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    min-width: 60px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 0 1 auto;
+    max-width: 120px;
+    /* Add default outline */
+    border: 2px solid #6cf;
+    box-sizing: border-box;
+    position: relative; /* For the active indicator */
+}
+
+.command-node:hover {
+    transform: scale(1.1);
+}
+
+.command-node.active::after {
+    content: '';
+    position: absolute;
+    bottom: -4px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 8px;
+    height: 8px;
+    background-color: #6cf;
+    border-radius: 50%;
+    box-shadow: 0 0 4px #6cf;
+}
+
+.command-node.move {
+    background-color: #2a6;
+    color: white;
+}
+
+.command-node.pen {
+    background-color: #62a;
+    color: white;
+}
+
+.command-node.color {
+    background-color: #a26;
+    color: white;
+}
+
+/* Remove outline for common commands */
+.command-node.common {
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.canvas-wrapper {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 10px;
+}
+
+.canvas-label {
+    position: absolute;
+    top: -25px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(51, 51, 51, 0.8);
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    color: #666;
+}
+
+.canvas-wrapper.active .canvas-label {
+    color: #6cf;
+}
+
+.canvas-wrapper.inactive {
+    opacity: 0.5;
+}
+
+.execution-row.inactive {
+    opacity: 0.5;
+    background-color: rgba(0, 0, 0, 0.1);
 }

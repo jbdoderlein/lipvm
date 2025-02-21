@@ -41,16 +41,26 @@ function generateStatements(stmts: Stmt[]): Object[] {
  * Effectful & recursive statement evaluation
  */
 function evalStmt(stmt: Stmt, env: MiniLogoGenEnv, state: DrawingState) : (Object | undefined)[] {
+    
+    // Extract location information from CST node
+    const location = stmt.$cstNode ? {
+        offset: stmt.$cstNode.offset,
+        end: stmt.$cstNode.end,
+        length: stmt.$cstNode.length
+    } : undefined;
+
     if(isPen(stmt)) {
         if(stmt.mode === 'up') {
             state.drawing = false;
             return [{
-                cmd: 'penUp'
+                cmd: 'penUp',
+                location
             }];
         } else {
             state.drawing = true;
             return [{
-                cmd: 'penDown'
+                cmd: 'penDown',
+                location
             }];
         }
 
@@ -59,17 +69,18 @@ function evalStmt(stmt: Stmt, env: MiniLogoGenEnv, state: DrawingState) : (Objec
         let cmds: Object[] = [{
             cmd: 'move',
             x: evalExprWithEnv(stmt.ex, env),
-            y: evalExprWithEnv(stmt.ey, env)
+            y: evalExprWithEnv(stmt.ey, env),
+            location
         }];
-
+        /*
         if (state.drawing) {
-            cmds.push({ cmd: 'penUp' });
-            cmds.push({ cmd: 'penDown' });
+            cmds.push({ cmd: 'penUp', location });
+            cmds.push({ cmd: 'penDown', location });
         } else {
-            cmds.push({ cmd: 'penDown' });
-            cmds.push({ cmd: 'penUp' });
+            cmds.push({ cmd: 'penDown', location });
+            cmds.push({ cmd: 'penUp', location });
         }
-
+        */
         return cmds;
 
     } else if(isMacro(stmt)) {
@@ -112,12 +123,20 @@ function evalStmt(stmt: Stmt, env: MiniLogoGenEnv, state: DrawingState) : (Objec
     } else if (isColor(stmt)) {
         // apply color to stroke
         if (stmt.color) {
-            return [{cmd:'color', color: stmt.color}]
+            return [{
+                cmd:'color', 
+                color: stmt.color,
+                location
+            }]
         } else {
             const r = evalExprWithEnv(stmt.r!, env);
             const g = evalExprWithEnv(stmt.g!, env);
             const b = evalExprWithEnv(stmt.b!, env);
-            return [{cmd:'color', r, g, b}]
+            return [{
+                cmd:'color', 
+                r, g, b,
+                location
+            }]
         }
 
     } else {

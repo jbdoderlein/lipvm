@@ -1,6 +1,7 @@
 export interface Command {
     name: 'penUp' | 'penDown' | 'move' | 'color';
     args: MoveArgs | ColorArgs | undefined;
+    location: Location;
 }
 
 export interface MoveArgs {
@@ -30,16 +31,16 @@ export function getCommands(commands: any[]): Command[] {
     commands.forEach((command) => {
         switch (command.cmd) {
             case 'penUp':
-                result.push({ name: 'penUp', args: undefined } as Command);
+                result.push({ name: 'penUp', args: undefined, location: command.location } as Command);
                 break;
             case 'penDown':
-                result.push({ name: 'penDown', args: undefined } as Command);
+                result.push({ name: 'penDown', args: undefined, location: command.location } as Command);
                 break;
             case 'move':
-                result.push({ name: 'move', args: { x: command.x, y: command.y } as MoveArgs} as Command);
+                result.push({ name: 'move', args: { x: command.x, y: command.y }, location: command.location} as Command);
                 break;
             case 'color':
-                result.push({ name: 'color', args: { color: command.color, r: command.r, g: command.g, b: command.b } as ColorArgs } as Command);
+                result.push({ name: 'color', args: { color: command.color, r: command.r, g: command.g, b: command.b }, location: command.location } as Command);
                 break;
 
         }
