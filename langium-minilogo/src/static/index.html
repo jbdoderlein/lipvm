@@ -12,14 +12,29 @@
         <!-- Use a wrapper to display Monaco + Canvas side-by-side -->
         <div id="page-wrapper">
             <!-- Monaco half -->
-            <div class="half">
+            <div class="half half1">
                 <div class="wrapper">
                     <div id="monaco-editor-root"></div>
                 </div>
             </div>
             <!-- Canvas half -->
-            <div class="half">
-                <canvas id='minilogo-canvas' width=500 height=600></canvas>
+            <div class="half half2">
+                <!-- Execution controls -->
+                <div id="controls-container">
+                    <button id="step-back" class="control-button" title="Step Backward">◀</button>
+                    <input type="range" id="step-slider" min="0" max="0" value="0">
+                    <button id="step-forward" class="control-button" title="Step Forward">▶</button>
+                    <span id="step-label" class="step-label">Step: 0/0</span>
+                    <button id="freeze-button" class="control-button">❄ Freeze</button>
+                </div>
+                <!-- Canvas container -->
+                <div id="canvas-container">
+                    <canvas id='minilogo-canvas' width=500 height=600></canvas>
+                </div>
+                <!-- Execution graph -->
+                <div id="execution-graph-container">
+                    <div class="execution-timeline"></div>
+                </div>
             </div>
         </div>
 
@@ -27,13 +42,7 @@
         <div style="text-align:center">
             <span id="status-msg"></span>
         </div>
-
-        <br/>
-        <footer>
-            <br/>
-            <p style="font-style:italic">Powered by</p>
-            <img width="125" src="https://langium.org/assets/langium_logo_w_nib.svg" alt="Langium">
-        </footer>
+        
         <!-- Monaco Configuration -->
         <script type="module" src="minilogo.js"></script>
     </body>
