@@ -61,7 +61,7 @@ function evalStmt(stmt: Stmt, env: MiniLogoGenEnv, state: DrawingState) : (Objec
             x: evalExprWithEnv(stmt.ex, env),
             y: evalExprWithEnv(stmt.ey, env)
         }];
-
+        /*
         if (state.drawing) {
             cmds.push({ cmd: 'penUp' });
             cmds.push({ cmd: 'penDown' });
@@ -69,6 +69,7 @@ function evalStmt(stmt: Stmt, env: MiniLogoGenEnv, state: DrawingState) : (Objec
             cmds.push({ cmd: 'penDown' });
             cmds.push({ cmd: 'penUp' });
         }
+        */
 
         return cmds;
 

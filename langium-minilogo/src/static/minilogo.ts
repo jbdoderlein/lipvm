@@ -19,6 +19,9 @@ type MiniLogoMove = {
     }
 };
 
+/**
+ * Color definition
+ */
 type HexOrLitColor = {
     color: string
 } | {
@@ -81,7 +84,7 @@ export function createUserConfig(config: ClassicConfig): UserConfig {
             options: {
                 $type: 'WorkerDirect',
                 worker: config.worker as Worker,
-                name: `${id}-language-server-worker`
+                name: id
             }
         }
     };
@@ -187,6 +190,18 @@ function setStatus(msg: string) {
     }
 }
 
+// Store the last received commands from the worker
+let storedCommands: MiniLogoCommand[] = [];
+// Current position in the command list when stepping
+let currentCommandIndex = 0;
+// Canvas state
+let canvasState = {
+    drawing: false,
+    posX: 0,
+    posY: 0,
+    strokeStyle: 'white'
+};
+
 async function main() {
     // setup worker def & styles
     setup();
@@ -209,8 +224,56 @@ async function main() {
 
     let running = false;
     let timeout: NodeJS.Timeout | null = null;
-    client.onNotification('browser/DocumentChange', (resp) => {
+    
+    // Get button elements
+    const executeBtn = document.getElementById('execute-btn') as HTMLButtonElement;
+    const stepBtn = document.getElementById('step-btn') as HTMLButtonElement;
+    const clearBtn = document.getElementById('clear-btn') as HTMLButtonElement;
+    
+    // Initialize canvas
+    const canvas = document.getElementById('minilogo-canvas') as HTMLCanvasElement;
+    const context = canvas.getContext('2d');
+    if (!context) {
+        throw new Error('Unable to get canvas context!');
+    }
+    
+    // Draw initial grid
+    drawGrid(canvas, context);
+    
+    // Add event listeners for buttons
+    executeBtn.addEventListener('click', () => {
+        if (storedCommands.length > 0) {
+            prepareForExecution();
+        } else {
+            setStatus('No program to execute. Edit the code first.');
+        }
+    });
+    
+    stepBtn.addEventListener('click', () => {
+        if (currentCommandIndex < storedCommands.length) {
+            stepThroughCommand(storedCommands[currentCommandIndex], context);
+            currentCommandIndex++;
+            
+            if (currentCommandIndex >= storedCommands.length) {
+                stepBtn.disabled = true;
+                setStatus('Program execution completed');
+            }
+        }
+    });
+    
+    clearBtn.addEventListener('click', () => {
+        clearCanvas(canvas, context);
+        currentCommandIndex = 0;
+        stepBtn.disabled = storedCommands.length === 0;
+        canvasState = {
+            drawing: false,
+            posX: 0,
+            posY: 0,
+            strokeStyle: 'white'
+        };
+    });
 
+    client.onNotification('browser/DocumentChange', (resp) => {
         // always store this new program in local storage
         const value = wrapper.getModel()?.getValue();
         if (window.localStorage && value) {
@@ -231,39 +294,28 @@ async function main() {
         timeout = setTimeout(async () => {
             running = true;
             setStatus('');
-            console.info('generating & running current code...');
+            console.info('parsing current code...');
 
-            // decode & run commands
+            // decode & store commands
             let result = JSON.parse(resp.content);
-            let commands = result.$commands;
-            try {
-                await updateMiniLogoCanvas(commands);
-                running = false;
-            } catch (e) {
-                // failed at some point, log & disable running so we can try again
-                console.error(e);
-                running = false;
-            }
-
+            storedCommands = result.$commands;
+            
+            // Reset command index but don't enable step button yet
+            // User needs to click Execute first
+            currentCommandIndex = 0;
+            stepBtn.disabled = true;
+            
+            setStatus('Program parsed. Click Execute to prepare for execution.');
+            running = false;
         }, 200);
     });
     
     /**
-     * Takes generated MiniLogo commands, and draws on an HTML5 canvas
+     * Draws a grid on the canvas
      */
-    function updateMiniLogoCanvas(cmds: MiniLogoCommand[]) {
-        const canvas : HTMLCanvasElement | null = document.getElementById('minilogo-canvas') as HTMLCanvasElement | null;
-        if (!canvas) {
-            throw new Error('Unable to find canvas element!');
-        }
-        const context = canvas.getContext('2d');
-
-        if (!context) {
-            throw new Error('Unable to get canvas context!');
-        }
-    
+    function drawGrid(canvas: HTMLCanvasElement, context: CanvasRenderingContext2D) {
         context.clearRect(0, 0, canvas.width, canvas.height);
-    
+        
         context.beginPath();
         context.strokeStyle = '#333';
         for (let x = 0; x <= canvas.width; x+=(canvas.width / 10)) {
@@ -275,83 +327,99 @@ async function main() {
             context.lineTo(canvas.width, y);
         }
         context.stroke();
+    }
     
-        context.strokeStyle = 'white';
+    /**
+     * Clears the canvas and redraws the grid
+     */
+    function clearCanvas(canvas: HTMLCanvasElement, context: CanvasRenderingContext2D) {
+        drawGrid(canvas, context);
+        setStatus('Canvas cleared');
+    }
     
-        // maintain some state about our drawing context
-        let drawing = false;
-        let posX = 0;
-        let posY = 0;
-    
-        const doneDrawingPromise = new Promise((resolve) => {
-            // use the command list to execute each command with a small delay
-            const id = setInterval(() => {
-                if (cmds.length > 0) {
-                    dispatchCommand(cmds.shift() as MiniLogoCommand, context);
-                } else {
-                    // finish existing draw
-                    if (drawing) {
-                        context.stroke();
-                    }
-                    clearInterval(id);
-                    resolve('');
-                }
-            }, 1);
-        });
-    
-        // dispatches a single command in the current context
-        function dispatchCommand(cmd: MiniLogoCommand, context: CanvasRenderingContext2D) {
-            if (cmd.name) {
-                switch (cmd.name) {
-                    // pen is lifted off the canvas
-                    case 'penUp':
-                        drawing = false;
-                        context.stroke();
-                        break;
-    
-                    // pen is put down onto the canvas
-                    case 'penDown':
-                        drawing = true;
-                        context.beginPath();
-                        context.moveTo(posX, posY);
-                        break;
-    
-                    // move across the canvas
-                    // will draw only if the pen is 'down'
-                    case 'move':
-                        const x = cmd.args.x;
-                        const y = cmd.args.y;
-                        posX += x;
-                        posY += y;
-                        if (!drawing) {
-                            // move, no draw
-                            context.moveTo(posX, posY);
-                        } else {
-                            // move & draw
-                            context.lineTo(posX, posY);
-                        }
-                        break;
-    
-                    // set the color of the stroke
-                    case 'color':
-                        if ((cmd.args as { color: string }).color) {
-                            // literal color or hex
-                            context.strokeStyle = (cmd.args  as { color: string }).color;
-                        } else {
-                            // literal r,g,b components
-                            const args = cmd.args as { r: number, g: number, b: number };
-                            context.strokeStyle = `rgb(${args.r},${args.g},${args.b})`;
-                        }
-                        break;
+    /**
+     * Executes a single command and updates the canvas state
+     */
+    function stepThroughCommand(cmd: MiniLogoCommand, context: CanvasRenderingContext2D) {
+        if (cmd.name) {
+            switch (cmd.name) {
+                // pen is lifted off the canvas
+                case 'penUp':
+                    canvasState.drawing = false;
+                    context.stroke();
+                    setStatus('Command: Pen Up');
+                    break;
 
-                    // fallback in case we missed an instruction
-                    default:
-                        throw new Error('Unrecognized command received: ' + JSON.stringify(cmd));
-    
-                }
+                // pen is put down onto the canvas
+                case 'penDown':
+                    canvasState.drawing = true;
+                    context.beginPath();
+                    context.moveTo(canvasState.posX, canvasState.posY);
+                    setStatus('Command: Pen Down');
+                    break;
+
+                // move across the canvas
+                // will draw only if the pen is 'down'
+                case 'move':
+                    const x = cmd.args.x;
+                    const y = cmd.args.y;
+                    canvasState.posX += x;
+                    canvasState.posY += y;
+                    if (!canvasState.drawing) {
+                        // move, no draw
+                        context.moveTo(canvasState.posX, canvasState.posY);
+                    } else {
+                        // move & draw
+                        context.lineTo(canvasState.posX, canvasState.posY);
+                        context.stroke();
+                        context.beginPath();
+                        context.moveTo(canvasState.posX, canvasState.posY);
+                    }
+                    setStatus(`Command: Move (${x}, ${y})`);
+                    break;
+
+                // set the color of the stroke
+                case 'color':
+                    if ((cmd.args as { color: string }).color) {
+                        // literal color or hex
+                        canvasState.strokeStyle = (cmd.args as { color: string }).color;
+                    } else {
+                        // literal r,g,b components
+                        const args = cmd.args as { r: number, g: number, b: number };
+                        canvasState.strokeStyle = `rgb(${args.r},${args.g},${args.b})`;
+                    }
+                    context.strokeStyle = canvasState.strokeStyle;
+                    setStatus(`Command: Set Color to ${canvasState.strokeStyle}`);
+                    break;
+
+                // fallback in case we missed an instruction
+                default:
+                    throw new Error('Unrecognized command received: ' + JSON.stringify(cmd));
             }
         }
-        return doneDrawingPromise;
+    }
+    
+    /**
+     * Prepares the program for step-by-step execution
+     */
+    function prepareForExecution() {
+        // Reset command index and enable step button
+        currentCommandIndex = 0;
+        stepBtn.disabled = false;
+        
+        // Reset canvas state but don't clear the canvas
+        canvasState = {
+            drawing: false,
+            posX: 0,
+            posY: 0,
+            strokeStyle: 'white'
+        };
+        
+        if (context) {
+            context.strokeStyle = canvasState.strokeStyle;
+        }
+        
+        setStatus('Program ready. Click Step to execute commands one by one.');
     }
 }
 
