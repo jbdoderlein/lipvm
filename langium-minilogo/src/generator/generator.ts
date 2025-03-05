@@ -41,16 +41,24 @@ function generateStatements(stmts: Stmt[]): Object[] {
  * Effectful & recursive statement evaluation
  */
 function evalStmt(stmt: Stmt, env: MiniLogoGenEnv, state: DrawingState) : (Object | undefined)[] {
+    // Extract source location information from the AST node
+    const sourceLocation = stmt.$cstNode ? {
+        startLine: stmt.$cstNode.range.start.line + 1, // Convert to 1-indexed
+        endLine: stmt.$cstNode.range.end.line + 1      // Convert to 1-indexed
+    } : undefined;
+    
     if(isPen(stmt)) {
         if(stmt.mode === 'up') {
             state.drawing = false;
             return [{
-                cmd: 'penUp'
+                cmd: 'penUp',
+                sourceLocation
             }];
         } else {
             state.drawing = true;
             return [{
-                cmd: 'penDown'
+                cmd: 'penDown',
+                sourceLocation
             }];
         }
 
@@ -59,7 +67,8 @@ function evalStmt(stmt: Stmt, env: MiniLogoGenEnv, state: DrawingState) : (Objec
         let cmds: Object[] = [{
             cmd: 'move',
             x: evalExprWithEnv(stmt.ex, env),
-            y: evalExprWithEnv(stmt.ey, env)
+            y: evalExprWithEnv(stmt.ey, env),
+            sourceLocation
         }];
         /*
         if (state.drawing) {
@@ -113,12 +122,20 @@ function evalStmt(stmt: Stmt, env: MiniLogoGenEnv, state: DrawingState) : (Objec
     } else if (isColor(stmt)) {
         // apply color to stroke
         if (stmt.color) {
-            return [{cmd:'color', color: stmt.color}]
+            return [{
+                cmd: 'color', 
+                color: stmt.color,
+                sourceLocation
+            }];
         } else {
             const r = evalExprWithEnv(stmt.r!, env);
             const g = evalExprWithEnv(stmt.g!, env);
             const b = evalExprWithEnv(stmt.b!, env);
-            return [{cmd:'color', r, g, b}]
+            return [{
+                cmd: 'color', 
+                r, g, b,
+                sourceLocation
+            }];
         }
 
     } else {

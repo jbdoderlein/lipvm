@@ -1,6 +1,12 @@
 export interface Command {
     name: 'penUp' | 'penDown' | 'move' | 'color';
     args: MoveArgs | ColorArgs | undefined;
+    sourceLocation?: SourceLocation;
+}
+
+export interface SourceLocation {
+    startLine: number;
+    endLine: number;
 }
 
 export interface MoveArgs {
@@ -28,20 +34,41 @@ export interface ColorArgs {
 export function getCommands(commands: any[]): Command[] {
     let result: Command[] = [];
     commands.forEach((command) => {
+        // Extract source location if available
+        const sourceLocation = command.sourceLocation ? {
+            startLine: command.sourceLocation.startLine,
+            endLine: command.sourceLocation.endLine
+        } : undefined;
+        
         switch (command.cmd) {
             case 'penUp':
-                result.push({ name: 'penUp', args: undefined } as Command);
+                result.push({ 
+                    name: 'penUp', 
+                    args: undefined,
+                    sourceLocation 
+                } as Command);
                 break;
             case 'penDown':
-                result.push({ name: 'penDown', args: undefined } as Command);
+                result.push({ 
+                    name: 'penDown', 
+                    args: undefined,
+                    sourceLocation 
+                } as Command);
                 break;
             case 'move':
-                result.push({ name: 'move', args: { x: command.x, y: command.y } as MoveArgs} as Command);
+                result.push({ 
+                    name: 'move', 
+                    args: { x: command.x, y: command.y } as MoveArgs,
+                    sourceLocation 
+                } as Command);
                 break;
             case 'color':
-                result.push({ name: 'color', args: { color: command.color, r: command.r, g: command.g, b: command.b } as ColorArgs } as Command);
+                result.push({ 
+                    name: 'color', 
+                    args: { color: command.color, r: command.r, g: command.g, b: command.b } as ColorArgs,
+                    sourceLocation 
+                } as Command);
                 break;
-
         }
     })
     return result;

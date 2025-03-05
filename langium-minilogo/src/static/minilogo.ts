@@ -2,10 +2,19 @@ import { MonacoEditorLanguageClientWrapper, UserConfig } from "monaco-editor-wra
 import { useWorkerFactory } from "monaco-editor-wrapper/workerFactory";
 
 /**
+ * Source location information for a command
+ */
+type SourceLocation = {
+    startLine: number;
+    endLine: number;
+};
+
+/**
  * Pen command (up or down)
  */
 type MiniLogoPen = {
-    name: 'penUp' | 'penDown'
+    name: 'penUp' | 'penDown';
+    sourceLocation?: SourceLocation;
 };
 
 /**
@@ -16,7 +25,8 @@ type MiniLogoMove = {
     args: {
         x: number;
         y: number;
-    }
+    };
+    sourceLocation?: SourceLocation;
 };
 
 /**
@@ -35,7 +45,8 @@ type HexOrLitColor = {
  */
 type MiniLogoColor = {
     name: 'color'
-    args: HexOrLitColor
+    args: HexOrLitColor;
+    sourceLocation?: SourceLocation;
 };
 
 /**
@@ -201,6 +212,23 @@ let canvasState = {
     posY: 0,
     strokeStyle: 'white'
 };
+// Monaco editor instance
+let monacoEditor: any = null;
+// Current line decorations
+let currentLineDecorations: string[] = [];
+// Flag to track if we're in the middle of execution
+let isExecuting = false;
+// Store the latest parsed commands from the editor
+let latestParsedCommands: MiniLogoCommand[] = [];
+// Store code versions for the timeline
+interface CodeVersion {
+    code: string;
+    commands: MiniLogoCommand[];
+    timestamp: number;
+    description: string;
+}
+let codeVersions: CodeVersion[] = [];
+let currentVersionIndex = -1;
 
 async function main() {
     // setup worker def & styles
@@ -217,6 +245,9 @@ async function main() {
     })
     await wrapper.initAndStart(userConfig, document.getElementById("monaco-editor-root")!);
 
+    // Store a reference to the Monaco editor instance
+    monacoEditor = wrapper.getEditor();
+
     const client = wrapper.getLanguageClient();
     if (!client) {
         throw new Error('Unable to obtain language client for the Minilogo!');
@@ -226,9 +257,13 @@ async function main() {
     let timeout: NodeJS.Timeout | null = null;
     
     // Get button elements
+    const loadBtn = document.getElementById('load-btn') as HTMLButtonElement;
     const executeBtn = document.getElementById('execute-btn') as HTMLButtonElement;
     const stepBtn = document.getElementById('step-btn') as HTMLButtonElement;
     const clearBtn = document.getElementById('clear-btn') as HTMLButtonElement;
+    
+    // Get timeline element
+    const timelineEl = document.getElementById('code-timeline') as HTMLDivElement;
     
     // Initialize canvas
     const canvas = document.getElementById('minilogo-canvas') as HTMLCanvasElement;
@@ -240,10 +275,76 @@ async function main() {
     // Draw initial grid
     drawGrid(canvas, context);
     
+    // Initial code parsing
+    setTimeout(() => {
+        // Add the initial code version to the timeline once it's parsed
+        if (storedCommands.length > 0) {
+            addCodeVersion(wrapper.getModel()?.getValue() || '', storedCommands, 'Initial code');
+        }
+    }, 1000);
+    
     // Add event listeners for buttons
+    loadBtn.addEventListener('click', () => {
+        if (latestParsedCommands.length > 0) {
+            // If we're in the middle of execution, try to find the corresponding position
+            if (isExecuting) {
+                // Get the current source position
+                const currentCmdIndex = Math.min(currentCommandIndex, storedCommands.length - 1);
+                const currentCmd = storedCommands[currentCmdIndex];
+                
+                if (currentCmd && currentCmd.sourceLocation) {
+                    // Find the closest matching command in the new program
+                    const newStartIndex = findClosestCommandBySourcePosition(
+                        latestParsedCommands, 
+                        currentCmd.sourceLocation
+                    );
+                    
+                    // Update stored commands
+                    storedCommands = latestParsedCommands;
+                    
+                    // Set the execution to continue from the matching position
+                    currentCommandIndex = newStartIndex;
+                    
+                    // Make sure the step button is enabled
+                    stepBtn.disabled = false;
+                    
+                    // Update UI
+                    setStatus('New code loaded. Continue stepping from the corresponding position.');
+                } else {
+                    // No source location available, just restart
+                    storedCommands = latestParsedCommands;
+                    currentCommandIndex = 0;
+                    
+                    // Keep execution state active but restart from beginning
+                    stepBtn.disabled = false;
+                    
+                    setStatus('New code loaded but source location not available. Execution reset to beginning.');
+                }
+            } else {
+                // Not executing yet, just store the new commands
+                storedCommands = latestParsedCommands;
+                currentCommandIndex = 0;
+                stepBtn.disabled = true;
+                setStatus('New code loaded. Click Execute to prepare for execution.');
+            }
+            
+            // Add the new code version to the timeline
+            addCodeVersion(wrapper.getModel()?.getValue() || '', latestParsedCommands, 'Loaded code');
+            
+            // Reset the new code available indicator
+            loadBtn.classList.remove('new-code-available');
+        } else {
+            setStatus('No code to load. Edit the code first.');
+        }
+    });
+    
     executeBtn.addEventListener('click', () => {
         if (storedCommands.length > 0) {
+            isExecuting = true;
             prepareForExecution();
+            
+            // Add an execution version to the timeline
+            addCodeVersion(wrapper.getModel()?.getValue() || '', storedCommands, 'Started execution');
         } else {
             setStatus('No program to execute. Edit the code first.');
         }
@@ -251,12 +352,21 @@ async function main() {
     
     stepBtn.addEventListener('click', () => {
         if (currentCommandIndex < storedCommands.length) {
-            stepThroughCommand(storedCommands[currentCommandIndex], context);
-            currentCommandIndex++;
-            
-            if (currentCommandIndex >= storedCommands.length) {
-                stepBtn.disabled = true;
-                setStatus('Program execution completed');
+            try {
+                stepThroughCommand(storedCommands[currentCommandIndex], context);
+                currentCommandIndex++;
+                
+                if (currentCommandIndex >= storedCommands.length) {
+                    stepBtn.disabled = true;
+                    isExecuting = false;
+                    setStatus('Program execution completed');
+                } else {
+                    // Make sure the step button stays enabled as long as there are more commands
+                    stepBtn.disabled = false;
+                }
+            } catch (error) {
+                console.error('Error executing command:', error);
+                setStatus('Error executing command. Check console for details.');
             }
         }
     });
@@ -264,6 +374,7 @@ async function main() {
     clearBtn.addEventListener('click', () => {
         clearCanvas(canvas, context);
         currentCommandIndex = 0;
+        isExecuting = false;
         stepBtn.disabled = storedCommands.length === 0;
         canvasState = {
             drawing: false,
@@ -271,6 +382,11 @@ async function main() {
             posY: 0,
             strokeStyle: 'white'
         };
+        
+        // Clear line decorations
+        if (monacoEditor) {
+            currentLineDecorations = monacoEditor.deltaDecorations(currentLineDecorations, []);
+        }
     });
 
     client.onNotification('browser/DocumentChange', (resp) => {
@@ -293,20 +409,23 @@ async function main() {
         // set a timeout to run the current code
         timeout = setTimeout(async () => {
             running = true;
-            setStatus('');
             console.info('parsing current code...');
 
-            // decode & store commands
-            let result = JSON.parse(resp.content);
-            storedCommands = result.$commands;
-            
-            // Reset command index but don't enable step button yet
-            // User needs to click Execute first
-            currentCommandIndex = 0;
-            stepBtn.disabled = true;
-            
-            setStatus('Program parsed. Click Execute to prepare for execution.');
-            running = false;
+            try {
+                // decode & store new commands
+                let result = JSON.parse(resp.content);
+                latestParsedCommands = result.$commands;
+                
+                // Highlight the load button to indicate new code is available
+                loadBtn.classList.add('new-code-available');
+                
+                setStatus('New code parsed. Click Load to use it for execution.');
+            } catch (error) {
+                console.error('Error processing new program:', error);
+                setStatus('Error processing new program. Check console for details.');
+            } finally {
+                running = false;
+            }
         }, 200);
     });
     
@@ -341,6 +460,39 @@ async function main() {
      * Executes a single command and updates the canvas state
      */
     function stepThroughCommand(cmd: MiniLogoCommand, context: CanvasRenderingContext2D) {
+        // Highlight the current line in the editor if source location is available
+        if (cmd.sourceLocation && monacoEditor) {
+            // Clear previous decorations
+            currentLineDecorations = monacoEditor.deltaDecorations(currentLineDecorations, []);
+            
+            // Add new decoration for current line
+            const startLine = cmd.sourceLocation.startLine;
+            const endLine = cmd.sourceLocation.endLine;
+            
+            // Create a range using the editor's model
+            const model = monacoEditor.getModel();
+            if (model) {
+                currentLineDecorations = monacoEditor.deltaDecorations([], [
+                    {
+                        range: {
+                            startLineNumber: startLine,
+                            startColumn: 1,
+                            endLineNumber: endLine,
+                            endColumn: 1
+                        },
+                        options: {
+                            isWholeLine: true,
+                            className: 'currentExecutionLine',
+                            stickiness: 1 // NeverGrowsWhenTypingAtEdges
+                        }
+                    }
+                ]);
+                
+                // Scroll to the line
+                monacoEditor.revealLineInCenter(startLine);
+            }
+        }
+        
         if (cmd.name) {
             switch (cmd.name) {
                 // pen is lifted off the canvas
@@ -405,7 +557,7 @@ async function main() {
     function prepareForExecution() {
         // Reset command index and enable step button
         currentCommandIndex = 0;
-        stepBtn.disabled = false;
+        stepBtn.disabled = storedCommands.length === 0;
         
         // Reset canvas state but don't clear the canvas
         canvasState = {
@@ -419,7 +571,134 @@ async function main() {
             context.strokeStyle = canvasState.strokeStyle;
         }
         
-        setStatus('Program ready. Click Step to execute commands one by one.');
+        // Clear any existing line decorations
+        if (monacoEditor) {
+            currentLineDecorations = monacoEditor.deltaDecorations(currentLineDecorations, []);
+        }
+        
+        // Set execution state
+        isExecuting = storedCommands.length > 0;
+        
+        if (isExecuting) {
+            setStatus('Program ready. Click Step to execute commands one by one.');
+        } else {
+            setStatus('No commands to execute.');
+        }
+    }
+
+    /**
+     * Helper function to find the closest matching command by source position
+     */
+    function findClosestCommandBySourcePosition(commands: MiniLogoCommand[], sourcePos: SourceLocation): number {
+        // Try to find an exact match first
+        for (let i = 0; i < commands.length; i++) {
+            const cmdSourceLoc = commands[i].sourceLocation;
+            if (cmdSourceLoc && cmdSourceLoc.startLine === sourcePos.startLine) {
+                return i;
+            }
+        }
+        
+        // If no exact match, find the closest command after the current position
+        for (let i = 0; i < commands.length; i++) {
+            const cmdSourceLoc = commands[i].sourceLocation;
+            if (cmdSourceLoc && cmdSourceLoc.startLine >= sourcePos.startLine) {
+                return i;
+            }
+        }
+        
+        // If no match found, start from the beginning
+        return 0;
+    }
+
+    /**
+     * Adds a new code version to the timeline
+     */
+    function addCodeVersion(code: string, commands: MiniLogoCommand[], description: string) {
+        // Create a new code version
+        const newVersion: CodeVersion = {
+            code,
+            commands: [...commands],
+            timestamp: Date.now(),
+            description
+        };
+        
+        // Add to the versions array
+        codeVersions.push(newVersion);
+        currentVersionIndex = codeVersions.length - 1;
+        
+        // Update the timeline UI
+        updateTimelineUI();
+    }
+    
+    /**
+     * Updates the timeline UI with the current code versions
+     */
+    function updateTimelineUI() {
+        // Clear the timeline
+        timelineEl.innerHTML = '';
+        
+        // Add nodes for each version
+        codeVersions.forEach((version, index) => {
+            const node = document.createElement('div');
+            node.className = 'timeline-node';
+            if (index === currentVersionIndex) {
+                node.classList.add('active');
+            }
+            node.textContent = (index + 1).toString();
+            
+            // Add tooltip with description and timestamp
+            const tooltip = document.createElement('div');
+            tooltip.className = 'timeline-tooltip';
+            const date = new Date(version.timestamp);
+            tooltip.textContent = `${version.description} - ${date.toLocaleTimeString()}`;
+            node.appendChild(tooltip);
+            
+            // Add click handler to load this version
+            node.addEventListener('click', () => {
+                loadCodeVersion(index);
+            });
+            
+            // Add connections for related versions
+            if (index > 0) {
+                const connection = document.createElement('div');
+                connection.className = 'timeline-connection';
+                // Position will be set by CSS
+                node.appendChild(connection);
+            }
+            
+            timelineEl.appendChild(node);
+        });
+    }
+    
+    /**
+     * Loads a specific code version from the timeline
+     */
+    function loadCodeVersion(versionIndex: number) {
+        if (versionIndex >= 0 && versionIndex < codeVersions.length) {
+            const version = codeVersions[versionIndex];
+            
+            // Update the editor content
+            if (monacoEditor) {
+                monacoEditor.setValue(version.code);
+            }
+            
+            // Update the stored commands
+            storedCommands = [...version.commands];
+            currentCommandIndex = 0;
+            
+            // Update the current version index
+            currentVersionIndex = versionIndex;
+            
+            // Update the timeline UI
+            updateTimelineUI();
+            
+            // Update status
+            setStatus(`Loaded code version ${versionIndex + 1}: ${version.description}`);
+            
+            // Reset execution state
+            isExecuting = false;
+            stepBtn.disabled = true;
+        }
     }
 }
 
